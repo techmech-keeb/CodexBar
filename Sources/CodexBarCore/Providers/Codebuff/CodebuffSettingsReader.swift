@@ -30,19 +30,18 @@ public enum CodebuffSettingsReader {
     /// Returns the auth token from the local credentials file if present.
     public static func authToken(
         authFileURL: URL? = nil,
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String?
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        pathResolver: CodexBarPathResolver? = nil) -> String?
     {
-        let fileURL = authFileURL ?? self.defaultAuthFileURL(homeDirectory: homeDirectory)
+        let resolver = pathResolver ?? DefaultCodexBarPathResolver(homeDirectory: homeDirectory)
+        let fileURL = authFileURL ?? resolver.codebuffCredentialsFileURL()
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return self.parseAuthToken(data: data)
     }
 
     /// Default on-disk credentials path: `~/.config/manicode/credentials.json`.
     static func defaultAuthFileURL(homeDirectory: URL) -> URL {
-        homeDirectory
-            .appendingPathComponent(".config", isDirectory: true)
-            .appendingPathComponent("manicode", isDirectory: true)
-            .appendingPathComponent("credentials.json", isDirectory: false)
+        DefaultCodexBarPathResolver(homeDirectory: homeDirectory).codebuffCredentialsFileURL()
     }
 
     static func parseAuthToken(data: Data) -> String? {

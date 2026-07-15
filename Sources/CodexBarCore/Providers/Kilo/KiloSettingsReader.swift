@@ -14,19 +14,17 @@ public enum KiloSettingsReader {
 
     public static func authToken(
         authFileURL: URL? = nil,
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String?
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        pathResolver: CodexBarPathResolver? = nil) -> String?
     {
-        let fileURL = authFileURL ?? self.defaultAuthFileURL(homeDirectory: homeDirectory)
+        let resolver = pathResolver ?? DefaultCodexBarPathResolver(homeDirectory: homeDirectory)
+        let fileURL = authFileURL ?? resolver.kiloAuthFileURL()
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return self.parseAuthToken(data: data)
     }
 
     static func defaultAuthFileURL(homeDirectory: URL) -> URL {
-        homeDirectory
-            .appendingPathComponent(".local", isDirectory: true)
-            .appendingPathComponent("share", isDirectory: true)
-            .appendingPathComponent("kilo", isDirectory: true)
-            .appendingPathComponent("auth.json", isDirectory: false)
+        DefaultCodexBarPathResolver(homeDirectory: homeDirectory).kiloAuthFileURL()
     }
 
     static func parseAuthToken(data: Data) -> String? {

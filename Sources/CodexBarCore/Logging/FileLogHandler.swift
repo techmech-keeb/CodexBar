@@ -3,14 +3,7 @@ import Logging
 
 final class FileLogSink: @unchecked Sendable {
     static let shared = FileLogSink()
-    static let defaultURL: URL = {
-        let base = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
-        return base
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent("CodexBar", isDirectory: true)
-            .appendingPathComponent("CodexBar.log")
-    }()
+    static let defaultURL: URL = DefaultCodexBarPathResolver.shared.logFileURL()
 
     private let queue = DispatchQueue(label: "com.steipete.codexbar.filelog", qos: .utility)
     private let fileManager: FileManager
