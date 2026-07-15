@@ -223,6 +223,38 @@ Exit criteria:
 - **UI parity creep**: define the Windows release around core status/usage/settings requirements and defer macOS-only widgets/update affordances.
 - **Packaging scope**: choose one MVP channel first, then add winget/MSIX after signed installer or zip flow is stable.
 
+## Compatibility findings (2026-07-15 source audit)
+
+A read-through of the current tree confirms the architecture direction but surfaces
+concrete blockers the workstreams above must reorder around. These are code facts,
+not estimates:
+
+| # | Finding | Evidence | Impact |
+| --- | --- | --- | --- |
+| C1 | `SweetCookieKit` is an **unconditional** dependency of `CodexBarCore`. | `Package.swift` declares it on the `CodexBarCore` target with no platform condition; `import SweetCookieKit` appears in ~36 `CodexBarCore` files, none guarded by `#if os(...)`. | `CodexBarCore` — and therefore `CodexBarCLI` — will not compile on Windows until this kit is either Windows-buildable or moved behind a `CodexBarCookieStore` seam with a platform condition. Blocks even Tier 1. |
+| C2 | SQLite linkage is Linux-only. | `CSQLite3` system library is attached to `CodexBarCore`/`CodexBarCLI`/tests via `.when(platforms: [.linux])`; SQLite-backed providers (Windsurf, OpenCode Go, Cursor, Factory, Alibaba cookie import, cost scanner) read it in `CodexBarCore`. | No Windows SQLite link strategy exists. SQLite-dependent providers cannot link on Windows until one is defined (bundled amalgamation, vcpkg, or a `winsqlite3` module map). |
+| C3 | `Commander` (argument parser) Windows support is unverified. | `CodexBarCLI` depends on `steipete/Commander`; no Windows build has ever run it. | CLI MVP (workstream 3) rests on this; verify or replace before committing to the Windows CLI. |
+| C4 | No Windows CI exists. | `.github/workflows/ci.yml` runs macOS + Linux only; `release-cli.yml` matrix is linux/macos. | Workstream 1 / M1 ("build inventory") has no automation to produce the compatibility matrix. A `workflow_dispatch`, non-blocking Windows SwiftPM job is the cheapest way to operationalize it. |
+| C5 | Zero `#if os(Windows)` conditionals exist in `Sources/`. | grep of `Sources/` returns nothing for `os(Windows)`. | Confirms work is pre-M2. Note the codebase already carries ~20 `#if os(Linux)` seams in `CodexBarCore`, so the cross-platform seam pattern to imitate is established, not novel. |
+| C6 | `#if os(macOS)` in `Package.swift` is host-evaluated (a manifest subtlety, not a bug). | The macOS-only product/target blocks are gated with `#if os(macOS)` in the manifest itself. | Correct for cross-compilation: when SwiftPM's manifest is compiled on a Windows host, the macOS products/targets drop out automatically. Keep this pattern; do not switch to `.when(platforms:)` inside the macOS block. |
+
+### Plan correction: dependency ordering
+
+The workstream list presents "2. Shared platform seams" and "3. Windows CLI MVP" as
+sequential, but C1/C2 make part of workstream 2 a **hard precondition** for workstream 3,
+not a parallel nicety:
+
+1. **First**, land the `CodexBarCookieStore` seam and make `SweetCookieKit` conditional
+   (C1) plus a Windows SQLite decision (C2). Until then `swift build --product CodexBarCLI`
+   cannot even start on Windows, so the "build inventory" (M1) will stall at link errors
+   that are already known — capture them, but do not treat them as discovery.
+2. **Then** run the Windows build inventory against a Core that at least parses, so the
+   remaining failures are genuinely new signal (Foundation gaps, `Commander`, process
+   runner, path resolution) rather than the two blockers documented here.
+
+Recommended sequencing: M1 (inventory) and the C1/C2 slice of M2 should interleave; the
+first useful Windows CLI cannot precede them.
+
 ## Open questions
 
 - Should the Windows tray app live in this repository, a sibling repository, or an existing `Win-CodexBar` fork?
