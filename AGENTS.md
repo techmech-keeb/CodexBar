@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+> **Fork note (Windows port):** This fork tracks a Windows-support effort. When working
+> the Windows port with Codex, read [`docs/codex-windows-workflow.md`](docs/codex-windows-workflow.md)
+> first (scope, checks, restrictions) and [`docs/windows-port-feasibility.md`](docs/windows-port-feasibility.md)
+> for the plan and known compatibility blockers. The rules below still apply.
+
 ## Project Structure & Modules
 - `Sources/CodexBar`: Swift 6 menu bar app (usage/credits probes, icon renderer, settings). Keep changes small and reuse existing helpers.
 - `Tests/CodexBarTests`: XCTest coverage for usage parsing, status probes, icon patterns; mirror new logic with focused tests.
