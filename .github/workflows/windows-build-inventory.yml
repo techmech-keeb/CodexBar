@@ -30,12 +30,21 @@ jobs:
   inventory:
     name: Windows SwiftPM inventory
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 60
     continue-on-error: true
     env:
       RUN_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs['run-tests'] || false }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Official swift.org Windows toolchain; version matches the Linux CI SWIFT_VERSION.
+      # Non-fatal: if the install fails, the inventory step below still reports the runner state.
+      - name: Install Swift toolchain
+        continue-on-error: true
+        uses: compnerd/gha-setup-swift@eeda069c5bc95ac8a9ac5cea7d4f588ae5420ca5 # v0.4.0
+        with:
+          swift-version: swift-6.3.3-release
+          swift-build: 6.3.3-RELEASE
 
       - name: Runner and Swift toolchain inventory
         id: toolchain
@@ -56,7 +65,7 @@ jobs:
             "swift-found=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
             "| Swift | not found on PATH |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
             "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            "> Swift is not preinstalled on this runner. This inventory job is intentionally non-blocking until the Windows toolchain install path is locked." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            "> Swift toolchain install did not complete on this runner; see the Install Swift toolchain step logs. This inventory job stays non-blocking." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
             exit 0
           }
 
@@ -74,7 +83,18 @@ jobs:
       - name: Build CodexBarCLI
         if: steps.toolchain.outputs.swift-found == 'true'
         shell: pwsh
-        run: swift build --product CodexBarCLI
+        run: |
+          $ErrorActionPreference = "Continue"
+          $log = Join-Path $env:RUNNER_TEMP "windows-build-inventory.log"
+          swift build --product CodexBarCLI 2>&1 | Tee-Object -FilePath $log
+          $code = $LASTEXITCODE
+          "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "### swift build --product CodexBarCLI (exit code $code)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-Content $log -Tail 120 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          exit $code
 
       - name: Test portable suites
         if: steps.toolchain.outputs.swift-found == 'true' && env.RUN_TESTS == 'true'
