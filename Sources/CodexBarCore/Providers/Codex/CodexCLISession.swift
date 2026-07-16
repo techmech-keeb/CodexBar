@@ -277,6 +277,9 @@ actor CodexCLISession {
         }
         self.cleanup()
 
+        #if os(Windows)
+        throw SessionError.launchFailed("Codex CLI PTY sessions are not supported on Windows")
+        #else
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
         var win = winsize(ws_row: options.rows, ws_col: options.cols, ws_xpixel: 0, ws_ypixel: 0)
@@ -347,9 +350,11 @@ actor CodexCLISession {
         self.sessionEnvironment = options.environment
         self.sessionArguments = options.extraArgs
         self.sessionWorkingDirectory = options.workingDirectory
+        #endif
     }
 
     private func cleanup() {
+        #if !os(Windows)
         if let proc = self.process, proc.isRunning, let handle = self.primaryHandle {
             try? handle.write(contentsOf: Data("/exit\n".utf8))
         }
@@ -385,6 +390,7 @@ actor CodexCLISession {
             }
             TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: proc.processIdentifier)
         }
+        #endif
 
         self.process = nil
         self.primaryHandle = nil
@@ -401,6 +407,10 @@ actor CodexCLISession {
     }
 
     private func readChunk() -> Data {
+        #if os(Windows)
+        // PTY sessions never start on Windows (ensureStarted throws).
+        return Data()
+        #else
         guard self.primaryFD >= 0 else { return Data() }
         var appended = Data()
         while true {
@@ -413,6 +423,7 @@ actor CodexCLISession {
             break
         }
         return appended
+        #endif
     }
 
     private func drainOutput() {

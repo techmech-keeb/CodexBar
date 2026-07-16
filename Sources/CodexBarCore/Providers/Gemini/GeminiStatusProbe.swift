@@ -1344,7 +1344,12 @@ extension GeminiStatusProbe {
         stdoutCapture.start()
         stderrCapture.start()
         let pid = process.processIdentifier
+        #if os(Windows)
+        // No POSIX process groups on Windows; termination falls back to the single process.
+        let processGroup: pid_t? = nil
+        #else
         let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
+        #endif
 
         // Wait synchronously for Foundation to reap the helper. A separate timer owns timeout termination,
         // so neither termination-handler scheduling nor stale Process.isRunning state controls normal exits.

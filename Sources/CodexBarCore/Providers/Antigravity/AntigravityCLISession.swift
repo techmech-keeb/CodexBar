@@ -822,6 +822,17 @@ actor AntigravityCLISession {
 // MARK: - Production Process Implementation
 
 struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
+    #if os(Windows)
+    func launch(binary: String) throws -> any AntigravityCLIProcessHandle {
+        try self.launch(binary: binary, arguments: [])
+    }
+
+    func launch(binary: String, arguments: [String]) throws -> any AntigravityCLIProcessHandle {
+        _ = arguments
+        throw AntigravityCLISession.SessionError.launchFailed(
+            "Antigravity PTY sessions are not supported on Windows")
+    }
+    #else
     static func defaultSignalsForSpawn() -> sigset_t {
         var signals = sigset_t()
         sigemptyset(&signals)
@@ -962,6 +973,7 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
             primaryHandle: primaryHandle,
             secondaryHandle: secondaryHandle)
     }
+    #endif
 }
 
 final class AntigravitySpawnedPTYProcessHandle: AntigravityCLIProcessHandle, @unchecked Sendable {
@@ -1276,6 +1288,11 @@ final class AntigravityFileCLISessionLaunchLock: AntigravityCLISessionLaunchLock
     }
 
     func withLock<T>(_ operation: () throws -> T) throws -> T {
+        #if os(Windows)
+        // flock is unavailable on Windows, and PTY sessions never launch there,
+        // so the record store has no cross-process writers to guard against.
+        return try operation()
+        #else
         let directory = self.fileURL.deletingLastPathComponent()
         try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let fd = open(self.fileURL.path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
@@ -1293,5 +1310,6 @@ final class AntigravityFileCLISessionLaunchLock: AntigravityCLISessionLaunchLock
             }
         }
         return try operation()
+        #endif
     }
 }

@@ -275,6 +275,9 @@ actor ClaudeCLISession {
         }
         self.cleanup()
 
+        #if os(Windows)
+        throw SessionError.launchFailed("Claude CLI PTY sessions are not supported on Windows")
+        #else
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
         var win = winsize(ws_row: 50, ws_col: 160, ws_xpixel: 0, ws_ypixel: 0)
@@ -354,6 +357,7 @@ actor ClaudeCLISession {
         self.processGroup = processGroup
         self.binaryPath = binary
         self.startedAt = Date()
+        #endif
     }
 
     static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
@@ -382,6 +386,7 @@ actor ClaudeCLISession {
         if self.process != nil {
             Self.log.debug("Claude CLI session stopping")
         }
+        #if !os(Windows)
         if let proc = self.process, proc.isRunning {
             try? self.writeAllToPrimary(Data("/exit\r".utf8))
         }
@@ -417,6 +422,7 @@ actor ClaudeCLISession {
             }
             TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: proc.processIdentifier)
         }
+        #endif
 
         self.process = nil
         self.primaryHandle = nil
@@ -427,6 +433,10 @@ actor ClaudeCLISession {
     }
 
     private func readChunk() -> Data {
+        #if os(Windows)
+        // PTY sessions never start on Windows (ensureStarted throws).
+        return Data()
+        #else
         guard self.primaryFD >= 0 else { return Data() }
         var appended = Data()
         while true {
@@ -439,6 +449,7 @@ actor ClaudeCLISession {
             break
         }
         return appended
+        #endif
     }
 
     private func drainOutput() {
@@ -467,6 +478,9 @@ actor ClaudeCLISession {
     }
 
     private func writeAllToPrimary(_ data: Data) throws {
+        #if os(Windows)
+        throw SessionError.ioFailed("PTY sessions are not supported on Windows")
+        #else
         guard self.primaryFD >= 0 else { throw SessionError.processExited }
         try data.withUnsafeBytes { rawBytes in
             guard let baseAddress = rawBytes.baseAddress else { return }
@@ -495,5 +509,6 @@ actor ClaudeCLISession {
                 throw SessionError.ioFailed("write to PTY failed: \(String(cString: strerror(err)))")
             }
         }
+        #endif
     }
 }

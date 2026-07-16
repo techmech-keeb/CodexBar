@@ -59,6 +59,9 @@ public enum ProviderVersionDetector {
     }
 
     private static func resolveRealPath(_ path: String) -> String {
+        #if os(Windows)
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        #else
         var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
         if realpath(path, &buffer) != nil {
             return buffer.withUnsafeBufferPointer { rawBuffer in
@@ -67,6 +70,7 @@ public enum ProviderVersionDetector {
             }
         }
         return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        #endif
     }
 
     private static func getClaudeFingerprint(forPath path: String) -> ClaudeExecutableFingerprint? {
@@ -281,7 +285,11 @@ public enum ProviderVersionDetector {
         }
 
         guard proc.isRunning else { return true }
+        #if !os(Windows)
+        // On Windows, Process.terminate() already maps to the forceful
+        // TerminateProcess, so there is no SIGKILL escalation step.
         kill(proc.processIdentifier, SIGKILL)
+        #endif
         return exitSemaphore.wait(timeout: .now() + 1.0) == .success
     }
 }
