@@ -109,7 +109,7 @@ private enum TTYCommandRunnerActiveProcessRegistry {
 enum TTYProcessTreeTerminator {
     /// Default signal delivery; a no-op on Windows, where no PTY process trees
     /// can exist because every launcher throws before spawning.
-    static let defaultSignalSender: (pid_t, Int32) -> Void = { pid, signal in
+    static let defaultSignalSender: @Sendable (pid_t, Int32) -> Void = { pid, signal in
         #if os(Windows)
         _ = (pid, signal)
         #else
