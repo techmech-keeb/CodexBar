@@ -3,7 +3,7 @@ import Foundation
 import Musl
 #elseif canImport(Glibc)
 import Glibc
-#else
+#elseif canImport(Darwin)
 import Darwin
 #endif
 
@@ -827,6 +827,21 @@ extension CostUsageScanner {
 
     static func codexFileMetadata(fileURL: URL) -> CodexFileMetadata {
         let path = fileURL.path
+        #if os(Windows)
+        // fstatat/AT_FDCWD are POSIX-only; FileManager attributes give the same
+        // mtime/size signal. No stable dev/inode identity exists here, and nil
+        // fileId already means "identity unknown" on the failure path below.
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else {
+            return CodexFileMetadata(path: path, mtimeUnixMs: 0, size: 0, fileId: nil)
+        }
+        let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        return CodexFileMetadata(
+            path: path,
+            mtimeUnixMs: Int64((modified * 1000).rounded()),
+            size: size,
+            fileId: nil)
+        #else
         var info = stat()
         guard path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else {
             return CodexFileMetadata(path: path, mtimeUnixMs: 0, size: 0, fileId: nil)
@@ -843,6 +858,7 @@ extension CostUsageScanner {
             mtimeUnixMs: modifiedSeconds * 1000 + modifiedNanoseconds / 1_000_000,
             size: Int64(info.st_size),
             fileId: "\(info.st_dev):\(info.st_ino)")
+        #endif
     }
 
     static func dropCachedCodexFile(

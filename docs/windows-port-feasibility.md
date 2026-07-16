@@ -232,9 +232,9 @@ not estimates:
 | # | Finding | Evidence | Impact |
 | --- | --- | --- | --- |
 | C1 | `SweetCookieKit` is now **partially isolated** but cookie import is still a Windows-degraded surface. | `CodexBarCookieStore` exists, the `CodexBarCore` target conditions the `SweetCookieKit` product on macOS/Linux, and direct `import SweetCookieKit` sites are guarded away from Windows; Phase 1 migrated CommandCode cookie reads to the seam. | This removes the unconditional manifest/import blocker and gives Windows a no-op cookie seam, but most cookie-backed providers still call SweetCookieKit-shaped APIs directly inside their guarded implementation files. Continue migrating provider importers before treating cookie support as portable. |
-| C2 | SQLite linkage is Linux-only. | `CSQLite3` system library is attached to `CodexBarCore`/`CodexBarCLI`/tests via `.when(platforms: [.linux])`; SQLite-backed providers (Windsurf, OpenCode Go, Cursor, Factory, Alibaba cookie import, cost scanner) read it in `CodexBarCore`. | No Windows SQLite link strategy exists. SQLite-dependent providers cannot link on Windows until one is defined (bundled amalgamation, vcpkg, or a `winsqlite3` module map). |
+| C2 | SQLite linkage is Linux-only, but the **degraded-on-Windows gating already exists** (audited 2026-07-16 on merged main). | All six SQLite call sites in `CodexBarCore` (Windsurf, OpenCode Go, Cursor, Factory, Alibaba local reads, cost scanner) sit behind `canImport(SQLite3)/canImport(CSQLite3)` chains or `#if os(macOS)`/`#if os(macOS) \|\| os(Linux)` blocks, and Cursor/Windsurf/OpenCode Go carry explicit `#else` unsupported stubs. `CSQLite3` stays `.when(platforms: [.linux])` in `Package.swift`. | SQLite is **not** a Windows compile blocker in the degraded phase — none of these imports or symbols reach a Windows compile, and no manifest change is needed. The remaining C2 work is the *enablement* decision (bundled amalgamation, vcpkg, or a `winsqlite3` module map) for when SQLite-backed providers should actually work on Windows, which can wait until after the CLI MVP. |
 | C3 | `Commander` (argument parser) Windows support is unverified. | `CodexBarCLI` depends on `steipete/Commander`; no Windows build has ever run it. | CLI MVP (workstream 3) rests on this; verify or replace before committing to the Windows CLI. |
-| C4 | Windows CI now has a **non-blocking inventory job**, but not a release gate. | `.github/workflows/windows-build-inventory.yml` runs on Windows manually and on PRs that touch portable build surfaces; the main CI and release CLI workflows still gate only macOS/Linux. | Workstream 1 / M1 can start collecting Windows SwiftPM/toolchain evidence without blocking unrelated PRs. It should become a required build gate only after C1/C2 and the toolchain install path are resolved. |
+| C4 | The Windows inventory job now **installs a real toolchain and attempts the build** (still non-blocking, not a release gate). | `.github/workflows/windows-build-inventory.yml` installs the official Swift 6.3.3 Windows toolchain (via `compnerd/gha-setup-swift` v0.4.0, pinned by SHA) and runs `swift build --product CodexBarCLI`, publishing the build-log tail to the step summary; the main CI and release CLI workflows still gate only macOS/Linux. | M1 evidence is now generated automatically on manual dispatch and on PRs touching portable surfaces. Each run's summary is the compatibility-matrix input. Promote it to a required gate only once the build reliably parses Core. |
 | C5 | Zero `#if os(Windows)` conditionals exist in `Sources/`. | grep of `Sources/` returns nothing for `os(Windows)`. | Confirms work is pre-M2. Note the codebase already carries ~20 `#if os(Linux)` seams in `CodexBarCore`, so the cross-platform seam pattern to imitate is established, not novel. |
 | C6 | `#if os(macOS)` in `Package.swift` is host-evaluated (a manifest subtlety, not a bug). | The macOS-only product/target blocks are gated with `#if os(macOS)` in the manifest itself. | Correct for cross-compilation: when SwiftPM's manifest is compiled on a Windows host, the macOS products/targets drop out automatically. Keep this pattern; do not switch to `.when(platforms:)` inside the macOS block. |
 
@@ -248,14 +248,16 @@ not a parallel nicety:
    build surfaces change, so runner/toolchain facts are captured early without making
    Windows a required gate.
 2. **Next**, continue the `CodexBarCookieStore` migration after the Phase 1 seam and
-   `SweetCookieKit` platform condition (C1), plus make a Windows SQLite decision (C2).
-   Until C2 and the remaining cookie importer references are addressed, `swift build --product CodexBarCLI`
-   may still fail on Windows, so build failures from those blockers should be captured but not
-   treated as new discovery.
+   `SweetCookieKit` platform condition (C1). The SQLite side (C2) needs no unblocking work:
+   the audit confirmed every SQLite call site is already gated away from Windows, so the
+   only C2 decision left is *enablement* (how to link SQLite when those providers should
+   work on Windows), which can trail the CLI MVP. Remaining Windows build failures should
+   now be treated as genuine new discovery (Foundation gaps, `Commander`, process/PTY code,
+   Darwin/Glibc import chains without a Windows branch).
 3. **Then** promote the Windows build inventory from evidence-gathering to a stricter
    PR/release signal against a Core that at least parses, so the remaining failures are
    genuinely new signal (Foundation gaps, `Commander`, process runner, path resolution)
-   rather than the two blockers documented here.
+   rather than the cookie/SQLite blockers already documented here.
 
 Recommended sequencing: M1 (inventory) and the C1/C2 slice of M2 should interleave; the
 first useful Windows CLI cannot precede them.
