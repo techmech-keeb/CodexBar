@@ -90,10 +90,26 @@ jobs:
           $code = $LASTEXITCODE
           "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "### swift build --product CodexBarCLI (exit code $code)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $unique = Select-String -Path $log -Pattern ': error: ' |
+            ForEach-Object { $_.Line.Trim() } |
+            Sort-Object -Unique
+          "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "#### Unique errors: $($unique.Count)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          Get-Content $log -Tail 120 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $unique | Select-Object -First 100 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "#### Log tail" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-Content $log -Tail 40 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          if ($unique.Count -gt 0) {
+            "::group::Unique errors ($($unique.Count))" | Write-Output
+            $unique | Write-Output
+            "::endgroup::" | Write-Output
+          }
           exit $code
 
       - name: Test portable suites
