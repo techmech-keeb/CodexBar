@@ -202,6 +202,9 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
             guard !terminals.isEmpty else { return [] }
             #if canImport(Darwin)
             return Set(SpawnedProcessGroup.allProcessIDs().filter { self.process(pid: $0, holdsAny: terminals) })
+            #elseif os(Windows)
+            // No /proc fd table and no PTY holders to discover on Windows.
+            return []
             #else
             return Set(SpawnedProcessGroup.allProcessIDs().filter { pid in
                 let directory = "/proc/\(pid)/fd"
@@ -284,6 +287,9 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
     private static func processIDs(inProcessGroup processGroup: pid_t) -> [pid_t] {
         #if canImport(Darwin)
         return self.processIDs(type: UInt32(PROC_PGRP_ONLY), typeInfo: UInt32(bitPattern: processGroup))
+        #elseif os(Windows)
+        _ = processGroup
+        return []
         #else
         return self.allProcessIDs().filter { getpgid($0) == processGroup }
         #endif
