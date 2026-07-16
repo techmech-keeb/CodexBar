@@ -96,7 +96,9 @@ enum MiMoCookieHeader {
 }
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 private let miMoCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.mimo]?.browserCookieOrder ?? Browser.defaultImportOrder

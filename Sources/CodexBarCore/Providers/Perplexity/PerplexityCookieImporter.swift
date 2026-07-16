@@ -1,7 +1,9 @@
 import Foundation
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 public enum PerplexityCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5

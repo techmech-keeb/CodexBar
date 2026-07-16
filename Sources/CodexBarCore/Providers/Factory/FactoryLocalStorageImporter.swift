@@ -1,7 +1,9 @@
 import Foundation
 #if os(macOS)
 import SQLite3
+#if !os(Windows)
 import SweetCookieKit
+#endif
 #endif
 
 #if os(macOS)

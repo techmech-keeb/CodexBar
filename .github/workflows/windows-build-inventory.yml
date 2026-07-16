@@ -1,0 +1,82 @@
+name: Windows Build Inventory
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-tests:
+        description: "Run swift test --parallel after the CLI build attempt."
+        required: false
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - ".github/workflows/windows-build-inventory.yml"
+      - "Package.swift"
+      - "Package.resolved"
+      - "Sources/CodexBarCore/**"
+      - "Sources/CodexBarCLI/**"
+      - "TestsLinux/**"
+      - "docs/codex-windows-workflow.md"
+      - "docs/windows-port-feasibility.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-inventory-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    name: Windows SwiftPM inventory
+    runs-on: windows-2022
+    timeout-minutes: 30
+    continue-on-error: true
+    env:
+      RUN_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs['run-tests'] || false }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Runner and Swift toolchain inventory
+        id: toolchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          "## Windows build inventory" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Field | Value |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| --- | --- |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Runner | ``$env:RUNNER_NAME`` |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| OS | ``$env:ImageOS`` |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Image version | ``$env:ImageVersion`` |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Architecture | ``$env:PROCESSOR_ARCHITECTURE`` |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+          $swift = Get-Command swift -ErrorAction SilentlyContinue
+          if ($null -eq $swift) {
+            "swift-found=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "| Swift | not found on PATH |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            "> Swift is not preinstalled on this runner. This inventory job is intentionally non-blocking until the Windows toolchain install path is locked." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 0
+          }
+
+          "swift-found=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $swiftVersion = (& swift --version) -join " "
+          "| Swift | ``$swiftVersion`` |" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          swift --version
+          swift package --version
+
+      - name: Resolve dependencies
+        if: steps.toolchain.outputs.swift-found == 'true'
+        shell: pwsh
+        run: swift package resolve
+
+      - name: Build CodexBarCLI
+        if: steps.toolchain.outputs.swift-found == 'true'
+        shell: pwsh
+        run: swift build --product CodexBarCLI
+
+      - name: Test portable suites
+        if: steps.toolchain.outputs.swift-found == 'true' && env.RUN_TESTS == 'true'
+        shell: pwsh
+        run: swift test --parallel

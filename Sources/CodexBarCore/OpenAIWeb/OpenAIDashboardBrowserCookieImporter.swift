@@ -1,6 +1,8 @@
 #if os(macOS)
 import Foundation
+#if !os(Windows)
 import SweetCookieKit
+#endif
 import WebKit
 
 @MainActor

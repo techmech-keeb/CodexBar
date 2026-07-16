@@ -4,7 +4,9 @@ import FoundationNetworking
 #endif
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 #endif
 
 private let ollamaSessionCookieNames: Set<String> = [

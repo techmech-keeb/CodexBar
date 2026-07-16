@@ -4,7 +4,9 @@ import FoundationNetworking
 #endif
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 #endif
 
 #if os(macOS)

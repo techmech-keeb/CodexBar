@@ -1,14 +1,15 @@
 import Foundation
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 /// Imports CommandCode session cookies from installed browsers (Chrome by default).
 public enum CommandCodeCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5
     private static let importSessionCache = ImportSessionCache(ttl: importSessionCacheTTL)
     private static let log = CodexBarLog.logger(LogCategories.commandcodeCookie)
-    private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["commandcode.ai", "www.commandcode.ai"]
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.commandcode]?.browserCookieOrder ?? Browser.defaultImportOrder
@@ -33,6 +34,7 @@ public enum CommandCodeCookieImporter {
 
     public static func importSessions(
         browserDetection: BrowserDetection = BrowserDetection(),
+        cookieStore: any CodexBarCookieStore = DefaultCodexBarCookieStore(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         if let cached = self.cachedImportSessions() {
@@ -43,7 +45,7 @@ public enum CommandCodeCookieImporter {
         let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
         for browserSource in candidates {
             do {
-                let perSource = try self.importSessions(from: browserSource, logger: logger)
+                let perSource = try self.importSessions(from: browserSource, cookieStore: cookieStore, logger: logger)
                 sessions.append(contentsOf: perSource)
             } catch {
                 BrowserCookieAccessGate.recordIfNeeded(error)
@@ -62,11 +64,12 @@ public enum CommandCodeCookieImporter {
 
     public static func importSessions(
         from browserSource: Browser,
+        cookieStore: any CodexBarCookieStore = DefaultCodexBarCookieStore(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         let query = BrowserCookieQuery(domains: self.cookieDomains)
         let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
-        let sources = try Self.cookieClient.codexBarRecords(
+        let sources = try cookieStore.records(
             matching: query,
             in: browserSource,
             logger: log)
@@ -98,19 +101,27 @@ public enum CommandCodeCookieImporter {
 
     public static func importSession(
         browserDetection: BrowserDetection = BrowserDetection(),
+        cookieStore: any CodexBarCookieStore = DefaultCodexBarCookieStore(),
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
+        let sessions = try self.importSessions(
+            browserDetection: browserDetection,
+            cookieStore: cookieStore,
+            logger: logger)
         guard let first = sessions.first else { throw CommandCodeCookieImportError.noCookies }
         return first
     }
 
     public static func hasSession(
         browserDetection: BrowserDetection = BrowserDetection(),
+        cookieStore: any CodexBarCookieStore = DefaultCodexBarCookieStore(),
         logger: ((String) -> Void)? = nil) -> Bool
     {
         do {
-            let session = try self.importSession(browserDetection: browserDetection, logger: logger)
+            let session = try self.importSession(
+                browserDetection: browserDetection,
+                cookieStore: cookieStore,
+                logger: logger)
             return !session.cookies.isEmpty
         } catch {
             return false

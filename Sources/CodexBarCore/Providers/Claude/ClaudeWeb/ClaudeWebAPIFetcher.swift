@@ -1,5 +1,7 @@
 import Foundation
+#if !os(Windows)
 import SweetCookieKit
+#endif
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif

@@ -27,10 +27,8 @@ public enum CodexHomeScope {
         fileManager: FileManager = .default)
         -> URL
     {
-        if let raw = env["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
-            return URL(fileURLWithPath: raw, isDirectory: true)
-        }
-        return fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true)
+        DefaultCodexBarPathResolver(homeDirectory: fileManager.homeDirectoryForCurrentUser, fileManager: fileManager)
+            .codexHomeURL(environment: env)
     }
 
     public static func scopedEnvironment(base: [String: String], codexHome: String?) -> [String: String] {

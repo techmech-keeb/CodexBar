@@ -3,7 +3,9 @@ import Foundation
 @preconcurrency import AppKit
 import Darwin
 import os.lock
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 enum BrowserProfileAccessIssue: Equatable {
     case accessDenied

@@ -1,7 +1,9 @@
 import Foundation
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 public enum GrokCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5

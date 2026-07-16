@@ -1,7 +1,9 @@
 import Foundation
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 private let opencodeCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.opencode]?.browserCookieOrder ?? Browser.defaultImportOrder
