@@ -275,11 +275,15 @@ real, not skipped.
 | `import Darwin` fallthrough (no `canImport` guard) | CostUsage CacheHelpers | **Resolved**: conditional import + FileManager stat fallback. |
 | `!os(Linux)` gates admitting Windows into Darwin-only APIs (URLSession conformance, server trust, `waitsForConnectivity`, `autoreleasepool`) | ProviderHTTPClient, AntigravityLocalhost/StatusProbe, AutoreleasePoolCompat | **Resolved**: switched to `canImport` branches. |
 | Package dependencies (`Commander`, swift-crypto, swift-log, conditional SweetCookieKit) | — | **Resolved implicitly**: dependencies compile before `CodexBarCore`, and no dependency errors appear — closing C3. |
-| **POSIX process/PTY control** (`pid_t`, `posix_spawn*`, `openpty`, `winsize`, `fcntl`, `kill`/`SIGKILL`, `setpgid`, `usleep`, `sigset_t`, `realpath`/`PATH_MAX`) | AntigravityCLISession, AntigravityProviderDescriptor, ClaudeCLISession, CodexCLISession, GeminiStatusProbe, KiroStatusProbe, ProviderVersionDetector | **Open — the last class.** This is workstream 2's `CodexBarProcessRunner` seam: gate the POSIX process/PTY layer to Darwin/Glibc/Musl and give Windows degraded stubs (CLI-probing providers are Tier 2 by plan). A Windows `typealias pid_t = Int32` keeps persisted session-record types Codable. |
-| **POSIX file permissions/locking** (`O_CLOEXEC`, `S_IRUSR`/`S_IWUSR`, `flock`, `fchmod`, `mode_t`) | ClaudeOAuthPendingCacheClearStore, CodexOAuthCredentials, AntigravityCLISession (lock helper) | **Open.** Small, contained: secure-permission and advisory-lock helpers need Windows equivalents or documented no-ops (these OAuth flows are degraded on Windows in phase 1 anyway). |
+| **POSIX process/PTY control** (`pid_t`, `posix_spawn*`, `openpty`, `winsize`, `fcntl`, `kill`/`SIGKILL`, `setpgid`, `usleep`, `sigset_t`, `realpath`/`PATH_MAX`, `waitpid`/`waitid`, `getpgid`/`getpgrp`) | Provider CLI sessions (Claude/Codex/Antigravity), Gemini/Kiro probes, ProviderVersionDetector, and the Host engine (SpawnedProcessGroup, TTYCommandRunner, SubprocessRunner, PathEnvironment) | **Resolved (degraded)**: launchers throw a clear unsupported error on Windows, helpers no-op or return empty, `WindowsProcessCompat` supplies `pid_t`/`SIGKILL`/`usleep`, and macOS/Linux keep their exact bodies. CLI-probing providers are Tier 2 by plan. |
+| **POSIX file permissions/locking** (`O_CLOEXEC`, `S_IRUSR`/`S_IWUSR`, `flock`, `fchmod`, `mode_t`) | ClaudeOAuthPendingCacheClearStore, CodexOAuthCredentials, CookieHeaderCache, Antigravity record store | **Resolved (degraded)**: in-process locks remain, flock is skipped on Windows, credential staging uses `Data(.withoutOverwriting)` with a FileManager-based replace (CRT `rename()` does not overwrite). POSIX 0o600 hardening unchanged on macOS/Linux; Windows relies on per-user profile ACLs (noted inline). |
+| **CLI-target POSIX sockets/signals** (`poll`/`POLLIN`, `MSG_NOSIGNAL`, `SIGHUP`, `kill`) | CLILocalHTTPServer, CLITerminationSignalMonitor | **Resolved (degraded)**: `codexbar serve` reports not-readable on Windows (unsupported for now), signal monitoring drops SIGHUP and re-raises via exit status. |
 
-Once the two open classes are stubbed, `CodexBarCore` should compile on Windows and the
-next signal moves to the `CodexBarCLI` target itself.
+**Milestone (2026-07-16): `CodexBarCore` compiles on Windows.** After the Host-layer and
+permission gating landed, the inventory's remaining errors moved into the `CodexBarCLI`
+target (the two files above). Next signals to watch: a clean `swift build --product
+CodexBarCLI` exit, then actual execution (`codexbar --version`, `usage --json`) on the
+Windows runner.
 
 ## Open questions
 

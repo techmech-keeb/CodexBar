@@ -12,7 +12,12 @@ import Musl
 private func handleCLITerminationSignal(_: Int32) {}
 
 final class CLITerminationSignalMonitor: @unchecked Sendable {
+    #if os(Windows)
+    // The Windows ucrt has no SIGHUP.
+    static let signalNumbers = [SIGINT, SIGTERM]
+    #else
     static let signalNumbers = [SIGINT, SIGTERM, SIGHUP]
+    #endif
 
     private let lock = NSLock()
     private let sources: [DispatchSourceSignal]
@@ -54,7 +59,12 @@ final class CLITerminationSignalMonitor: @unchecked Sendable {
     static func terminateActiveHelpersAndReraise(_ signalNumber: Int32) {
         TTYCommandRunner.terminateActiveProcessesForAppShutdown()
         self.restoreDefaultHandler(for: signalNumber)
+        #if os(Windows)
+        // No kill(2); exit with the conventional signal status instead.
+        exit(128 + signalNumber)
+        #else
         _ = kill(getpid(), signalNumber)
+        #endif
     }
 
     private static func installCaptureHandler(for signalNumber: Int32) {
