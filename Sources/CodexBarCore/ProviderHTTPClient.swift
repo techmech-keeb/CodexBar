@@ -7,7 +7,10 @@ public protocol ProviderHTTPTransport: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
-#if !os(Linux)
+// Darwin-only: swift-corelibs-foundation's URLSession (Linux and Windows)
+// cannot satisfy this retroactive conformance; those platforms always go
+// through ProviderHTTPClient instead.
+#if canImport(Darwin)
 extension URLSession: ProviderHTTPTransport {}
 #endif
 
