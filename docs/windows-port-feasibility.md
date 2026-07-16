@@ -262,6 +262,25 @@ not a parallel nicety:
 Recommended sequencing: M1 (inventory) and the C1/C2 slice of M2 should interleave; the
 first useful Windows CLI cannot precede them.
 
+## Windows compile blocker matrix (from real builds, updated 2026-07-16)
+
+The inventory workflow now prints a deduplicated error list per run; this section tracks
+the classes observed so far. Resolved classes stay listed so later readers know they were
+real, not skipped.
+
+| Class | Files | Status |
+| --- | --- | --- |
+| Swift toolchain missing on runner | — | **Resolved**: inventory installs Swift 6.3.3. |
+| `import CoreFoundation` (not a module on Windows) | ClaudeSwap ×2, Devin | **Resolved**: shared `NSNumber.codexBarIsBoolean` helper. |
+| `import Darwin` fallthrough (no `canImport` guard) | CostUsage CacheHelpers | **Resolved**: conditional import + FileManager stat fallback. |
+| `!os(Linux)` gates admitting Windows into Darwin-only APIs (URLSession conformance, server trust, `waitsForConnectivity`, `autoreleasepool`) | ProviderHTTPClient, AntigravityLocalhost/StatusProbe, AutoreleasePoolCompat | **Resolved**: switched to `canImport` branches. |
+| Package dependencies (`Commander`, swift-crypto, swift-log, conditional SweetCookieKit) | — | **Resolved implicitly**: dependencies compile before `CodexBarCore`, and no dependency errors appear — closing C3. |
+| **POSIX process/PTY control** (`pid_t`, `posix_spawn*`, `openpty`, `winsize`, `fcntl`, `kill`/`SIGKILL`, `setpgid`, `usleep`, `sigset_t`, `realpath`/`PATH_MAX`) | AntigravityCLISession, AntigravityProviderDescriptor, ClaudeCLISession, CodexCLISession, GeminiStatusProbe, KiroStatusProbe, ProviderVersionDetector | **Open — the last class.** This is workstream 2's `CodexBarProcessRunner` seam: gate the POSIX process/PTY layer to Darwin/Glibc/Musl and give Windows degraded stubs (CLI-probing providers are Tier 2 by plan). A Windows `typealias pid_t = Int32` keeps persisted session-record types Codable. |
+| **POSIX file permissions/locking** (`O_CLOEXEC`, `S_IRUSR`/`S_IWUSR`, `flock`, `fchmod`, `mode_t`) | ClaudeOAuthPendingCacheClearStore, CodexOAuthCredentials, AntigravityCLISession (lock helper) | **Open.** Small, contained: secure-permission and advisory-lock helpers need Windows equivalents or documented no-ops (these OAuth flows are degraded on Windows in phase 1 anyway). |
+
+Once the two open classes are stubbed, `CodexBarCore` should compile on Windows and the
+next signal moves to the `CodexBarCLI` target itself.
+
 ## Open questions
 
 - Should the Windows tray app live in this repository, a sibling repository, or an existing `Win-CodexBar` fork?
