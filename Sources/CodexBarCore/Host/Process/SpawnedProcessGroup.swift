@@ -202,6 +202,9 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
             guard !terminals.isEmpty else { return [] }
             #if canImport(Darwin)
             return Set(SpawnedProcessGroup.allProcessIDs().filter { self.process(pid: $0, holdsAny: terminals) })
+            #elseif os(Windows)
+            // No /proc fd table and no PTY holders to discover on Windows.
+            return []
             #else
             return Set(SpawnedProcessGroup.allProcessIDs().filter { pid in
                 let directory = "/proc/\(pid)/fd"
@@ -284,6 +287,9 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
     private static func processIDs(inProcessGroup processGroup: pid_t) -> [pid_t] {
         #if canImport(Darwin)
         return self.processIDs(type: UInt32(PROC_PGRP_ONLY), typeInfo: UInt32(bitPattern: processGroup))
+        #elseif os(Windows)
+        _ = processGroup
+        return []
         #else
         return self.allProcessIDs().filter { getpgid($0) == processGroup }
         #endif
@@ -343,6 +349,10 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         stdoutPipe: Pipe,
         stderrPipe: Pipe) throws -> SpawnedProcessGroup
     {
+        #if os(Windows)
+        _ = (binary, arguments, environment, stdoutPipe, stderrPipe)
+        throw LaunchError.setupFailed("process spawning is not supported on Windows")
+        #else
         #if canImport(Darwin)
         var fileActions: posix_spawn_file_actions_t?
         #else
@@ -435,6 +445,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
             throw LaunchError.spawnFailed(String(cString: strerror(spawnResult)))
         }
         return SpawnedProcessGroup(pid: pid, outputPipes: outputPipes)
+        #endif
     }
 
     package static func launchPTY(
@@ -444,6 +455,10 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         workingDirectory: URL?,
         fileDescriptors: (primary: Int32, secondary: Int32)) throws -> SpawnedProcessGroup
     {
+        #if os(Windows)
+        _ = (binary, arguments, environment, workingDirectory, fileDescriptors)
+        throw LaunchError.setupFailed("PTY process spawning is not supported on Windows")
+        #else
         let primaryFD = fileDescriptors.primary
         let secondaryFD = fileDescriptors.secondary
         guard let outputTTY = OutputTTYIdentity.resolve(fileDescriptor: secondaryFD) else {
@@ -538,6 +553,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
             throw LaunchError.spawnFailed(String(cString: strerror(spawnResult)))
         }
         return SpawnedProcessGroup(pid: pid, outputPipes: [], outputTTYs: [outputTTY])
+        #endif
     }
 
     package var isRunning: Bool {
@@ -676,6 +692,11 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
     }
 
     private func startWaiter() {
+        #if os(Windows)
+        // Never reached: both launch paths throw on Windows before a group exists.
+        self.termination.observeExit()
+        self.termination.resolve(1)
+        #else
         let pid = self.pid
         let processGroup = self.processGroup
         let observedProcessGroupMembers = self.observedProcessGroupMembers
@@ -708,6 +729,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
             let status = result == pid ? Self.exitStatus(from: rawStatus) : 1
             termination.resolve(status)
         }
+        #endif
     }
 
     private func waitForExit(timeout: TimeInterval) async -> Int32? {
@@ -802,7 +824,11 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         excluding excludedPID: pid_t)
         -> Set<TTYProcessTreeTerminator.ProcessIdentity>
     {
-        Set(self.processIDs(inProcessGroup: processGroup)
+        #if os(Windows)
+        _ = (processGroup, excludedPID)
+        return []
+        #else
+        return Set(self.processIDs(inProcessGroup: processGroup)
             .compactMap { pid -> TTYProcessTreeTerminator.ProcessIdentity? in
                 guard pid != getpid(),
                       pid != excludedPID,
@@ -814,20 +840,30 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
                 }
                 return identity
             })
+        #endif
     }
 
     private static func processGroupExists(_ processGroup: pid_t) -> Bool {
+        #if os(Windows)
+        _ = processGroup
+        return false
+        #else
         errno = 0
         return kill(-processGroup, 0) == 0 || errno == EPERM
+        #endif
     }
 
     private static func signal(
         processIdentities: Set<TTYProcessTreeTerminator.ProcessIdentity>,
         signal: Int32)
     {
+        #if os(Windows)
+        _ = (processIdentities, signal)
+        #else
         for identity in processIdentities where TTYProcessTreeTerminator.isCurrent(identity) {
             _ = kill(identity.pid, signal)
         }
+        #endif
     }
 
     package static func pipeDescriptorsToClose(_ descriptors: [Int32]) -> [Int32] {

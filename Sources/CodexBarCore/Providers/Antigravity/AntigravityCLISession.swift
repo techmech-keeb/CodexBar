@@ -822,6 +822,17 @@ actor AntigravityCLISession {
 // MARK: - Production Process Implementation
 
 struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
+    #if os(Windows)
+    func launch(binary: String) throws -> any AntigravityCLIProcessHandle {
+        try self.launch(binary: binary, arguments: [])
+    }
+
+    func launch(binary: String, arguments: [String]) throws -> any AntigravityCLIProcessHandle {
+        _ = arguments
+        throw AntigravityCLISession.SessionError.launchFailed(
+            "Antigravity PTY sessions are not supported on Windows")
+    }
+    #else
     static func defaultSignalsForSpawn() -> sigset_t {
         var signals = sigset_t()
         sigemptyset(&signals)
@@ -962,8 +973,10 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
             primaryHandle: primaryHandle,
             secondaryHandle: secondaryHandle)
     }
+    #endif
 }
 
+#if !os(Windows)
 final class AntigravitySpawnedPTYProcessHandle: AntigravityCLIProcessHandle, @unchecked Sendable {
     private let lock = NSLock()
     private let processPID: pid_t
@@ -1104,9 +1117,17 @@ final class AntigravitySpawnedPTYProcessHandle: AntigravityCLIProcessHandle, @un
 
 // MARK: - Production Stale Session Identity + Storage
 
+#endif
+
 struct AntigravityProcessIdentityProvider: AntigravityCLIProcessIdentityProviding {
     static var currentUserID: UInt32 {
-        UInt32(getuid())
+        #if os(Windows)
+        // No POSIX user IDs on Windows; records are per-profile already and no
+        // sessions are ever spawned there.
+        return 0
+        #else
+        return UInt32(getuid())
+        #endif
     }
 
     func ownerUserID(for pid: pid_t) -> UInt32? {
@@ -1133,7 +1154,11 @@ struct AntigravityProcessIdentityProvider: AntigravityCLIProcessIdentityProvidin
     }
 
     func identity(for pid: pid_t) -> AntigravityCLIProcessIdentity? {
-        #if canImport(Darwin)
+        #if os(Windows)
+        // No /proc equivalent here and no spawned sessions to identify.
+        _ = pid
+        return nil
+        #elseif canImport(Darwin)
         var pathBuffer = [CChar](repeating: 0, count: 4096)
         let pathLength = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
         guard pathLength > 0 else { return nil }
@@ -1276,6 +1301,11 @@ final class AntigravityFileCLISessionLaunchLock: AntigravityCLISessionLaunchLock
     }
 
     func withLock<T>(_ operation: () throws -> T) throws -> T {
+        #if os(Windows)
+        // flock is unavailable on Windows, and PTY sessions never launch there,
+        // so the record store has no cross-process writers to guard against.
+        return try operation()
+        #else
         let directory = self.fileURL.deletingLastPathComponent()
         try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         let fd = open(self.fileURL.path, O_CREAT | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)
@@ -1293,5 +1323,6 @@ final class AntigravityFileCLISessionLaunchLock: AntigravityCLISessionLaunchLock
             }
         }
         return try operation()
+        #endif
     }
 }

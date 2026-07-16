@@ -120,6 +120,12 @@ final class ClaudeOAuthPendingCacheClearUserDefaultsStore: ClaudeOAuthPendingCac
         Self.processLock.lock()
         defer { Self.processLock.unlock() }
 
+        #if os(Windows)
+        // flock is unavailable on Windows. The in-process lock above still
+        // serializes callers; cross-process coordination stays a non-goal while
+        // the Claude OAuth flow runs degraded on Windows.
+        return try operation()
+        #else
         try FileManager.default.createDirectory(
             at: self.lockURL.deletingLastPathComponent(),
             withIntermediateDirectories: true)
@@ -138,5 +144,6 @@ final class ClaudeOAuthPendingCacheClearUserDefaultsStore: ClaudeOAuthPendingCac
             }
         }
         return try operation()
+        #endif
     }
 }

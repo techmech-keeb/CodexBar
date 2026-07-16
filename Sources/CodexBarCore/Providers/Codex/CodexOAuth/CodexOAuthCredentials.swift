@@ -196,6 +196,19 @@ public enum CodexOAuthCredentialsStore {
             ".\(url.lastPathComponent).codexbar-staged-\(UUID().uuidString)",
             isDirectory: false)
         let stagedPath = stagedURL.path
+        #if os(Windows)
+        // No POSIX 0o600 hardening on Windows; the staged file inherits the
+        // per-user profile ACLs. Keep the same stage -> publish flow.
+        _ = stagedPath
+        do {
+            try data.write(to: stagedURL, options: [.withoutOverwriting])
+            try beforePublish?(stagedURL)
+            try self.renameItem(at: stagedURL, to: url)
+        } catch {
+            try? fileManager.removeItem(at: stagedURL)
+            throw error
+        }
+        #else
         let descriptor = stagedPath.withCString {
             open($0, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, mode_t(0o600))
         }
@@ -223,9 +236,18 @@ public enum CodexOAuthCredentialsStore {
             try? fileManager.removeItem(at: stagedURL)
             throw error
         }
+        #endif
     }
 
     private static func renameItem(at sourceURL: URL, to destinationURL: URL) throws {
+        #if os(Windows)
+        // CRT rename() does not replace an existing destination on Windows.
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try fileManager.moveItem(at: sourceURL, to: destinationURL)
+        #else
         let result = sourceURL.path.withCString { sourcePath in
             destinationURL.path.withCString { destinationPath in
                 rename(sourcePath, destinationPath)
@@ -234,6 +256,7 @@ public enum CodexOAuthCredentialsStore {
         guard result == 0 else {
             throw self.posixError(code: errno, path: destinationURL.path)
         }
+        #endif
     }
 
     private static func posixError(code: Int32, path: String) -> NSError {

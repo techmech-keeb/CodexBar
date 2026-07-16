@@ -107,6 +107,16 @@ private enum TTYCommandRunnerActiveProcessRegistry {
 }
 
 enum TTYProcessTreeTerminator {
+    /// Default signal delivery; a no-op on Windows, where no PTY process trees
+    /// can exist because every launcher throws before spawning.
+    static let defaultSignalSender: @Sendable (pid_t, Int32) -> Void = { pid, signal in
+        #if os(Windows)
+        _ = (pid, signal)
+        #else
+        kill(pid, signal)
+        #endif
+    }
+
     struct ProcessIdentity: Hashable {
         let pid: pid_t
         let startToken: UInt64
@@ -190,7 +200,7 @@ enum TTYProcessTreeTerminator {
         signal: Int32,
         knownDescendants: [pid_t] = [],
         childResolver: (pid_t) -> [pid_t] = Self.currentChildPIDs(of:),
-        signalSender: (pid_t, Int32) -> Void = { kill($0, $1) })
+        signalSender: (pid_t, Int32) -> Void = Self.defaultSignalSender)
     {
         guard rootPID > 0 else { return }
 
@@ -301,6 +311,7 @@ public struct TTYCommandRunner {
     public init() {}
 
     public static func terminateActiveProcessesForAppShutdown() {
+        #if !os(Windows)
         let targets = TTYCommandRunnerActiveProcessRegistry.drainForShutdown()
         guard !targets.isEmpty else { return }
 
@@ -322,6 +333,7 @@ public struct TTYCommandRunner {
                 processGroup: target.processGroup,
                 signal: SIGKILL)
         }
+        #endif
     }
 
     private static func resolveShutdownTargets(
@@ -502,6 +514,10 @@ public struct TTYCommandRunner {
         options: Options = Options(),
         onURLDetected: (@Sendable () -> Void)? = nil) throws -> Result
     {
+        #if os(Windows)
+        _ = (binary, script, options, onURLDetected)
+        throw Error.launchFailed("PTY commands are not supported on Windows")
+        #else
         let resolved: String
         if FileManager.default.isExecutableFile(atPath: binary) {
             resolved = binary
@@ -1073,6 +1089,7 @@ public struct TTYCommandRunner {
             .deadlineExceeded
         }
         return Result(text: text, completion: completion)
+        #endif
     }
 
     // swiftlint:enable function_body_length
@@ -1104,6 +1121,9 @@ extension TTYCommandRunner {
 
     private static func normalizedExecutablePath(_ path: String) -> String {
         let expanded = NSString(string: path).expandingTildeInPath
+        #if os(Windows)
+        return URL(fileURLWithPath: expanded).standardizedFileURL.path
+        #else
         var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
         if realpath(expanded, &buffer) != nil {
             return buffer.withUnsafeBufferPointer { rawBuffer in
@@ -1112,6 +1132,7 @@ extension TTYCommandRunner {
             }
         }
         return URL(fileURLWithPath: expanded).standardizedFileURL.path
+        #endif
     }
 
     private static func runWhich(_ tool: String) -> String? {

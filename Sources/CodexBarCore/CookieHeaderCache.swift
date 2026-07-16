@@ -809,6 +809,11 @@ public enum CookieHeaderCache {
 
     private static func withLegacyMutationLock<T>(_ operation: () throws -> T) throws -> T {
         try self.legacyMutationLock.withLock {
+            #if os(Windows)
+            // flock is unavailable on Windows; the in-process lock above still
+            // serializes callers within this process.
+            return try operation()
+            #else
             let lockURL = self.legacyMutationLockURL
             try FileManager.default.createDirectory(
                 at: lockURL.deletingLastPathComponent(),
@@ -827,6 +832,7 @@ public enum CookieHeaderCache {
                 }
             }
             return try operation()
+            #endif
         }
     }
 
