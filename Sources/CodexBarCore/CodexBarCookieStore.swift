@@ -10,7 +10,9 @@ public enum CodexBarCookieStoreError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .unsupportedPlatform:
-            "Browser cookie import is not supported on this platform. On Windows, cookie-linked providers run in a degraded state until a Windows cookie adapter is added."
+            "Browser cookie import is not supported on this platform. "
+                + "On Windows, cookie-linked providers run in a degraded state "
+                + "until a Windows cookie adapter is added."
         }
     }
 }
@@ -20,7 +22,7 @@ public protocol CodexBarCookieStore: Sendable {
     func records(
         matching query: BrowserCookieQuery,
         in browser: Browser,
-        logger: ((String) -> Void)?) throws -> BrowserCookieStoreRecords
+        logger: ((String) -> Void)?) throws -> [BrowserCookieStoreRecords]
 }
 
 public struct SweetCookieKitCookieStore: CodexBarCookieStore {
@@ -33,7 +35,7 @@ public struct SweetCookieKitCookieStore: CodexBarCookieStore {
     public func records(
         matching query: BrowserCookieQuery,
         in browser: Browser,
-        logger: ((String) -> Void)? = nil) throws -> BrowserCookieStoreRecords
+        logger: ((String) -> Void)? = nil) throws -> [BrowserCookieStoreRecords]
     {
         try self.client.codexBarRecords(matching: query, in: browser, logger: logger)
     }
