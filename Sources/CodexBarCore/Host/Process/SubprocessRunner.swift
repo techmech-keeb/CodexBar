@@ -139,9 +139,11 @@ public enum SubprocessRunner {
                 usleep(50000)
             }
         } else {
+            #if !os(Windows)
             for identity in descendantIdentities where TTYProcessTreeTerminator.isCurrent(identity) {
                 kill(identity.pid, SIGKILL)
             }
+            #endif
         }
         return true
     }
@@ -224,7 +226,12 @@ public enum SubprocessRunner {
         stderrCapture.start()
 
         let pid = process.processIdentifier
+        #if os(Windows)
+        _ = pid
+        let processGroup: pid_t? = nil
+        #else
         let processGroup: pid_t? = setpgid(pid, pid) == 0 ? pid : nil
+        #endif
 
         let exitCodeTask = Task<Int32, Never> {
             await termination.wait()

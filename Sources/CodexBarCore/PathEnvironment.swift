@@ -752,6 +752,11 @@ public enum ShellCommandLocator {
     }
 
     private static func makeCloseOnExecPipe() -> (read: Int32, write: Int32)? {
+        #if os(Windows)
+        // No POSIX pipes with close-on-exec semantics; the login-shell PATH
+        // probe that needs them is skipped on Windows.
+        return nil
+        #else
         var fds: (read: Int32, write: Int32) = (-1, -1)
         #if os(Linux)
         // Glibc and Musl export pipe2, but their Swift modules do not consistently declare it.
@@ -773,6 +778,7 @@ public enum ShellCommandLocator {
         }
         #endif
         return fds
+        #endif
     }
 
     // swiftlint:disable cyclomatic_complexity
@@ -787,6 +793,11 @@ public enum ShellCommandLocator {
         arguments: [String],
         timeout: TimeInterval) -> Data?
     {
+        #if os(Windows)
+        // posix_spawn-based login-shell probing does not apply on Windows.
+        _ = (shell, arguments, timeout)
+        return nil
+        #else
         // Darwin needs a lock around raw descriptor creation, close-on-exec flagging,
         // and spawn. Linux creates close-on-exec descriptors atomically with pipe2.
         self.shellSpawnLock.lock()
@@ -974,6 +985,7 @@ public enum ShellCommandLocator {
             }
         }
         return stdoutCollector.drain()
+        #endif
     }
 
     // swiftlint:enable cyclomatic_complexity
