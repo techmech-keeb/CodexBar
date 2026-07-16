@@ -1,4 +1,5 @@
 import Foundation
+
 #if canImport(SweetCookieKit)
 #if !os(Windows)
 import SweetCookieKit
