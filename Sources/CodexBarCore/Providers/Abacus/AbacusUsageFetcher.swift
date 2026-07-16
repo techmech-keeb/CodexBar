@@ -5,7 +5,9 @@ import FoundationNetworking
 #endif
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 // MARK: - Abacus Usage Fetcher
 

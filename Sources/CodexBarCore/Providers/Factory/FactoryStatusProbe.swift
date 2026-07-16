@@ -3,7 +3,9 @@ import Foundation
 import FoundationNetworking
 #endif
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 private let factoryCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.factory]?.browserCookieOrder ?? Browser.defaultImportOrder

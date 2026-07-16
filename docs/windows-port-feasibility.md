@@ -231,7 +231,7 @@ not estimates:
 
 | # | Finding | Evidence | Impact |
 | --- | --- | --- | --- |
-| C1 | `SweetCookieKit` is an **unconditional** dependency of `CodexBarCore`. | `Package.swift` declares it on the `CodexBarCore` target with no platform condition; `import SweetCookieKit` appears in ~36 `CodexBarCore` files, none guarded by `#if os(...)`. | `CodexBarCore` — and therefore `CodexBarCLI` — will not compile on Windows until this kit is either Windows-buildable or moved behind a `CodexBarCookieStore` seam with a platform condition. Blocks even Tier 1. |
+| C1 | `SweetCookieKit` is now **partially isolated** but cookie import is still a Windows-degraded surface. | `CodexBarCookieStore` exists, the `CodexBarCore` target conditions the `SweetCookieKit` product on macOS/Linux, and direct `import SweetCookieKit` sites are guarded away from Windows; Phase 1 migrated CommandCode cookie reads to the seam. | This removes the unconditional manifest/import blocker and gives Windows a no-op cookie seam, but most cookie-backed providers still call SweetCookieKit-shaped APIs directly inside their guarded implementation files. Continue migrating provider importers before treating cookie support as portable. |
 | C2 | SQLite linkage is Linux-only. | `CSQLite3` system library is attached to `CodexBarCore`/`CodexBarCLI`/tests via `.when(platforms: [.linux])`; SQLite-backed providers (Windsurf, OpenCode Go, Cursor, Factory, Alibaba cookie import, cost scanner) read it in `CodexBarCore`. | No Windows SQLite link strategy exists. SQLite-dependent providers cannot link on Windows until one is defined (bundled amalgamation, vcpkg, or a `winsqlite3` module map). |
 | C3 | `Commander` (argument parser) Windows support is unverified. | `CodexBarCLI` depends on `steipete/Commander`; no Windows build has ever run it. | CLI MVP (workstream 3) rests on this; verify or replace before committing to the Windows CLI. |
 | C4 | Windows CI now has a **non-blocking inventory job**, but not a release gate. | `.github/workflows/windows-build-inventory.yml` runs on Windows manually and on PRs that touch portable build surfaces; the main CI and release CLI workflows still gate only macOS/Linux. | Workstream 1 / M1 can start collecting Windows SwiftPM/toolchain evidence without blocking unrelated PRs. It should become a required build gate only after C1/C2 and the toolchain install path are resolved. |
@@ -247,10 +247,11 @@ not a parallel nicety:
 1. **First**, keep the non-blocking Windows inventory workflow running when portable
    build surfaces change, so runner/toolchain facts are captured early without making
    Windows a required gate.
-2. **Next**, land the `CodexBarCookieStore` seam and make `SweetCookieKit` conditional
-   (C1) plus a Windows SQLite decision (C2). Until then `swift build --product CodexBarCLI`
-   cannot produce a useful Windows binary, so build failures from those blockers should be
-   captured but not treated as new discovery.
+2. **Next**, continue the `CodexBarCookieStore` migration after the Phase 1 seam and
+   `SweetCookieKit` platform condition (C1), plus make a Windows SQLite decision (C2).
+   Until C2 and the remaining cookie importer references are addressed, `swift build --product CodexBarCLI`
+   may still fail on Windows, so build failures from those blockers should be captured but not
+   treated as new discovery.
 3. **Then** promote the Windows build inventory from evidence-gathering to a stricter
    PR/release signal against a Core that at least parses, so the remaining failures are
    genuinely new signal (Foundation gaps, `Commander`, process runner, path resolution)

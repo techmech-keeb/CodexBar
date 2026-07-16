@@ -1,6 +1,8 @@
 import Foundation
 #if canImport(SweetCookieKit)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 #endif
 
 public enum KeychainAccessGate {

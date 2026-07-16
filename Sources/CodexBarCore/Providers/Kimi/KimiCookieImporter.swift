@@ -1,7 +1,9 @@
 import Foundation
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 public enum KimiCookieImporter {
     private static let log = CodexBarLog.logger(LogCategories.kimiCookie)

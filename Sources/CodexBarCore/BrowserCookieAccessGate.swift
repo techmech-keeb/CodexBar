@@ -2,7 +2,9 @@ import Foundation
 
 #if os(macOS)
 import os.lock
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 enum BrowserCookieStoreAccessDecision: Equatable {
     case allowed

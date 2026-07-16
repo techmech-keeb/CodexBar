@@ -1,5 +1,7 @@
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 public typealias BrowserCookieImportOrder = [Browser]
 #else

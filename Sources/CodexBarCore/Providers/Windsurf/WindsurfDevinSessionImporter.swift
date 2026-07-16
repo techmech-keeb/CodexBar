@@ -1,6 +1,8 @@
 import Foundation
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 #endif
 
 #if os(macOS)

@@ -2,7 +2,9 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if !os(Windows)
 import SweetCookieKit
+#endif
 #if canImport(SQLite3)
 import SQLite3
 #elseif canImport(CSQLite3)

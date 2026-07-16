@@ -67,7 +67,10 @@ let package = Package(
                     .target(name: "CSQLite3", condition: .when(platforms: [.linux])),
                     .product(name: "Crypto", package: "swift-crypto"),
                     .product(name: "Logging", package: "swift-log"),
-                    .product(name: "SweetCookieKit", package: "SweetCookieKit"),
+                    .product(
+                        name: "SweetCookieKit",
+                        package: "SweetCookieKit",
+                        condition: .when(platforms: [.macOS, .linux])),
                 ],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),

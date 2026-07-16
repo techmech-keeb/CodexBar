@@ -4,7 +4,9 @@ import Foundation
 import CommonCrypto
 import Security
 import SQLite3
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 private let alibabaCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.alibaba]?.browserCookieOrder ?? Browser.defaultImportOrder

@@ -1,7 +1,9 @@
 import Foundation
 
 #if os(macOS)
+#if !os(Windows)
 import SweetCookieKit
+#endif
 
 private let mistralCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.mistral]?.browserCookieOrder ?? Browser.defaultImportOrder
