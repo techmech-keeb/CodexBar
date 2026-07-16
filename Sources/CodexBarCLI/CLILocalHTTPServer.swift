@@ -391,6 +391,12 @@ private func sendResponse(_ response: CLILocalHTTPResponse, to fd: Int32) {
 }
 
 private func waitForReadable(_ fd: Int32, timeoutMilliseconds: Int32) -> Bool {
+    #if os(Windows)
+    // No poll(2) under these names; `codexbar serve` is not supported on
+    // Windows yet, so report not-readable instead of blocking.
+    _ = (fd, timeoutMilliseconds)
+    return false
+    #else
     var pollFD = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
     while true {
         let result = poll(&pollFD, 1, timeoutMilliseconds)
@@ -402,10 +408,12 @@ private func waitForReadable(_ fd: Int32, timeoutMilliseconds: Int32) -> Bool {
         }
         return false
     }
+    #endif
 }
 
 private func sendNoSignalFlags() -> Int32 {
-    #if canImport(Darwin)
+    #if canImport(Darwin) || os(Windows)
+    // Darwin uses SO_NOSIGPIPE elsewhere; Windows has no SIGPIPE at all.
     0
     #else
     Int32(MSG_NOSIGNAL)
